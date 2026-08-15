@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"task013-cron/internal/cron"
@@ -17,14 +18,14 @@ var ErrBadJSON = errors.New("请求体不是合法的单个 JSON 对象")
 
 // API 是 cron 服务，内含简单的请求计数用于监控。
 type API struct {
-	reqCount int
+	reqCount atomic.Int64
 }
 
 // New 创建 API 实例。
 func New() *API { return &API{} }
 
 // RequestCount 返回已处理的请求总数。
-func (a *API) RequestCount() int { return a.reqCount }
+func (a *API) RequestCount() int { return int(a.reqCount.Load()) }
 
 // Handler 返回 HTTP 路由。
 func (a *API) Handler() http.Handler {
@@ -59,12 +60,12 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func (a *API) health(w http.ResponseWriter, r *http.Request) {
-	a.reqCount++
+	a.reqCount.Add(1)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *API) validate(w http.ResponseWriter, r *http.Request) {
-	a.reqCount++
+	a.reqCount.Add(1)
 	var req struct {
 		Expr string `json:"expr"`
 	}
@@ -85,7 +86,7 @@ func (a *API) validate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) next(w http.ResponseWriter, r *http.Request) {
-	a.reqCount++
+	a.reqCount.Add(1)
 	var req struct {
 		Expr  string `json:"expr"`
 		From  string `json:"from"`
